@@ -9,6 +9,7 @@ from tqdm import tqdm
 # note, velocity, time
 # fits into 32-bit integer
 
+
 def reduce_prec(arr, n_prec, v_prec, t_prec):
     """
     reduces the precision of an array of encoded messages.
@@ -20,6 +21,7 @@ def reduce_prec(arr, n_prec, v_prec, t_prec):
     filter_val += (127 >> (7 - n_prec)) << (31 - n_prec)
     return np.bitwise_and(arr, np.int32(filter_val), dtype=np.int32, out=arr)
 
+
 def encode(m):
     """
     encodes a MIDI message as a 32-bit signed integer.
@@ -27,6 +29,7 @@ def encode(m):
     if m.type == "note_off":
         return int(m.time)
     return (int(m.note) << 24) + (int(m.velocity) << 16) + int(m.time)
+
 
 def decode(m):
     """
@@ -37,6 +40,7 @@ def decode(m):
     vel = (m >> 16) & 127
     note = (m >> 24) & 127
     return mido.Message("note_on", note=note, velocity=vel, time=dtime)
+
 
 # finds longest track
 def find_main_track(file):
@@ -58,22 +62,28 @@ def filter_track(track):
         result.append(track[-1])
     return result
 
+
 # loads all tracks in a file
 def load(path):
     file = mido.MidiFile(path)
 
     if file.type == 2:
-        return [np.array([encode(msg) for msg in filter_track(track)], dtype=np.int32) for track in file.tracks]
+        return [
+            np.array([encode(msg) for msg in filter_track(track)], dtype=np.int32)
+            for track in file.tracks
+        ]
 
     return [np.array([encode(msg) for msg in filter_track(file)], dtype=np.int32)]
     # track = max(file.tracks, key=len)
     # return [np.array([encode(msg) for msg in filter_track(track)], dtype=np.int32)]
+
 
 # saves a single track to a file
 def save(path, arr):
     file = mido.MidiFile()
     file.tracks.append(mido.MidiTrack([decode(msg) for msg in arr]))
     file.save(path)
+
 
 # finds all the files with a given extension
 def get_all_files(p=".", ext=None, out=None):
@@ -88,9 +98,11 @@ def get_all_files(p=".", ext=None, out=None):
 
     return out
 
+
 def get_seed(data, k):
     i = random.randint(0, len(data) - k)
-    return data[i: i + k]
+    return data[i : i + k]
+
 
 def generate_iter(func, seed):
     while True:
@@ -98,6 +110,7 @@ def generate_iter(func, seed):
         seed[:] = np.roll(seed, -1)
         seed[-1] = m
         yield m
+
 
 def generate(func, seed, n, tq=False):
     arr = np.empty(n, dtype=np.int32)
@@ -107,19 +120,18 @@ def generate(func, seed, n, tq=False):
         seed[-1] = arr[i]
     return arr, seed
 
+
 def read_pipe(pipe=sys.stdin):
     while True:
         # yield int(pipe.readline().strip())
         yield input()
-        
-
 
 
 # rand_rate is on avg, how many times/sec it will pick randomly
 def get_randomwriter(data, k):
     data_dict = {}
     for i in tqdm(range(k, len(data))):
-        key = tuple(data[i - k: i])
+        key = tuple(data[i - k : i])
         if key in data_dict:
             data_dict[key].append(data[i])
         else:
@@ -130,7 +142,5 @@ def get_randomwriter(data, k):
         if len(choices) < 2:
             choices = data
         return random.choice(choices)
-    
+
     return call
-
-

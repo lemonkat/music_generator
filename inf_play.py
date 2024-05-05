@@ -26,7 +26,6 @@ if port is None:
             clock.tick(ticks_per_sec)
 
 else:
-
     with mido.open_output(port) as out_port:
         for m in util.read_pipe():
             msg = util.decode(m)
@@ -34,4 +33,3 @@ else:
 
             for _ in range(msg.time):
                 clock.tick(ticks_per_sec)
-

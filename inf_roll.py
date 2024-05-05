@@ -50,33 +50,43 @@ colors = [colorsys.hsv_to_rgb(i / 128, 0.99, 0.99) for i in range(*NOTE_RANGE)]
 color_codes = [16 + 36 * int(6 * r) + 6 * int(6 * g) + int(6 * b) for r, g, b in colors]
 color_strings = [f"\x1b[38;5;{code};m" for code in color_codes]
 
+
 def play_line(out_channel, line):
     for note in np.nonzero(line & 128)[0]:
-        out_channel.send(mido.Message("note_on", note=note + NOTE_RANGE[0], velocity=line[note] & 127, time=0))
+        out_channel.send(
+            mido.Message(
+                "note_on", note=note + NOTE_RANGE[0], velocity=line[note] & 127, time=0
+            )
+        )
+
 
 def line_iter(iterator):
     cur = np.zeros(NOTE_RANGE[1] - NOTE_RANGE[0], dtype=np.uint8)
     for msg in iterator:
         msg = util.decode(msg)
-        cur[msg.note - NOTE_RANGE[0]] = max(cur[msg.note - NOTE_RANGE[0]], 128 + msg.velocity)
+        cur[msg.note - NOTE_RANGE[0]] = max(
+            cur[msg.note - NOTE_RANGE[0]], 128 + msg.velocity
+        )
         for _ in range(msg.time):
             yield cur
             cur &= 127
 
+
 def draw_grid(grid):
-        result = ["\x1b8"]
-        for row in grid[::-1]:
-            line = ["##"]
-            for note, val in enumerate(row):
-                if val & 127:
-                    line.append(color_strings[note])
-                    line.append("O" if val > 128 else "#")
-                else:
-                    line.append(" ")
-            line.append("\x1b[0m##")
-            result.append("".join(line))
-        result.append("#" * (NOTE_RANGE[1] - NOTE_RANGE[0] + 4))
-        print("\n".join(result), flush=True)
+    result = ["\x1b8"]
+    for row in grid[::-1]:
+        line = ["##"]
+        for note, val in enumerate(row):
+            if val & 127:
+                line.append(color_strings[note])
+                line.append("O" if val > 128 else "#")
+            else:
+                line.append(" ")
+        line.append("\x1b[0m##")
+        result.append("".join(line))
+    result.append("#" * (NOTE_RANGE[1] - NOTE_RANGE[0] + 4))
+    print("\n".join(result), flush=True)
+
 
 ticks_per_line = int(ticks_per_sec / lines_per_sec)
 
@@ -106,20 +116,38 @@ draw_grid(np.zeros((scroll_dist, NOTE_RANGE[1] - NOTE_RANGE[0]), dtype=np.int32)
 
 # using circular array for speed
 cur_tick = 0
-note_grid = np.zeros((scroll_dist * ticks_per_line, NOTE_RANGE[1] - NOTE_RANGE[0]), dtype=np.uint8)
+note_grid = np.zeros(
+    (scroll_dist * ticks_per_line, NOTE_RANGE[1] - NOTE_RANGE[0]), dtype=np.uint8
+)
 
 clock = pygame.time.Clock()
 if port is None:
-        # for new_line in line_iter(util.generate_iter(func, seed)):
-        for new_line in line_iter(util.read_pipe()):
-            # print(line)
-            note_grid[cur_tick] = new_line
-            cur_tick = (cur_tick + 1) % note_grid.shape[0]
+    # for new_line in line_iter(util.generate_iter(func, seed)):
+    for new_line in line_iter(util.read_pipe()):
+        # print(line)
+        note_grid[cur_tick] = new_line
+        cur_tick = (cur_tick + 1) % note_grid.shape[0]
 
-            if cur_tick % ticks_per_line == 0:
-                draw_grid(np.roll(np.max(np.reshape(note_grid, (scroll_dist, ticks_per_line, NOTE_RANGE[1] - NOTE_RANGE[0])), axis=1), -(cur_tick // ticks_per_line), axis=0))
+        if cur_tick % ticks_per_line == 0:
+            draw_grid(
+                np.roll(
+                    np.max(
+                        np.reshape(
+                            note_grid,
+                            (
+                                scroll_dist,
+                                ticks_per_line,
+                                NOTE_RANGE[1] - NOTE_RANGE[0],
+                            ),
+                        ),
+                        axis=1,
+                    ),
+                    -(cur_tick // ticks_per_line),
+                    axis=0,
+                )
+            )
 
-            clock.tick(ticks_per_sec)
+        clock.tick(ticks_per_sec)
 else:
     with mido.open_output(port) as out_port:
         # for new_line in line_iter(util.generate_iter(func, seed)):
@@ -130,6 +158,22 @@ else:
             cur_tick = (cur_tick + 1) % note_grid.shape[0]
 
             if cur_tick % ticks_per_line == 0:
-                draw_grid(np.roll(np.max(np.reshape(note_grid, (scroll_dist, ticks_per_line, NOTE_RANGE[1] - NOTE_RANGE[0])), axis=1), -(cur_tick // ticks_per_line), axis=0))
+                draw_grid(
+                    np.roll(
+                        np.max(
+                            np.reshape(
+                                note_grid,
+                                (
+                                    scroll_dist,
+                                    ticks_per_line,
+                                    NOTE_RANGE[1] - NOTE_RANGE[0],
+                                ),
+                            ),
+                            axis=1,
+                        ),
+                        -(cur_tick // ticks_per_line),
+                        axis=0,
+                    )
+                )
 
             clock.tick(ticks_per_sec)

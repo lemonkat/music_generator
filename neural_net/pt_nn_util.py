@@ -8,6 +8,7 @@ from torch.utils import data as tdata
 
 import util
 
+
 class MidiDataset(tdata.IterableDataset):
     def __init__(self, path: str, k: int = 256):
         self._path = path
@@ -18,16 +19,16 @@ class MidiDataset(tdata.IterableDataset):
         with open(self._path, "r") as file:
             for line in file:
                 track = torch.tensor(
-                    [min(int(token), util.DIM - 1) for token in line.split()], 
-                    dtype=torch.int64
+                    [min(int(token), util.DIM - 1) for token in line.split()],
+                    dtype=torch.int64,
                 )
 
                 for idx in range(self._k, len(track) - 1):
                     seq = torch.nn.functional.one_hot(
-                        track[idx - self._k: idx],
+                        track[idx - self._k : idx],
                         num_classes=util.DIM,
                     ).to(torch.float32)
-                    
+
                     yield seq, track[idx + 1]
 
     def __len__(self) -> int:
@@ -37,14 +38,13 @@ class MidiDataset(tdata.IterableDataset):
                 for line in file:
                     self._len += line.count(" ") + 1 - self._k + 1
         return self._len
-                    
+
 
 def floatOR(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return 1 - (1 - a) * (1 - b)
-   
+
 
 class PositionalEncoding(torch.nn.Module):
-
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
         self.dropout = torch.nn.Dropout(p=dropout)
@@ -54,14 +54,15 @@ class PositionalEncoding(torch.nn.Module):
         pe = torch.zeros(max_len, 1, d_model)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
+        self.register_buffer("pe", pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Arguments:
             x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
         """
-        return self.dropout(x + self.pe[:x.size(0)])
+        return self.dropout(x + self.pe[: x.size(0)])
+
 
 class MidiRNN(torch.nn.Module):
     def __init__(self, k):
@@ -77,11 +78,12 @@ class MidiRNN(torch.nn.Module):
             torch.nn.Linear(5000, util.DIM),
             # torch.nn.Softmax(),
         )
-    
+
     def forward(self, x):
         out, _ = self.rnn(x)
         return self.dense(out)
-    
+
+
 class MidiTransformer(torch.nn.Module):
     def __init__(self, k: int):
         super().__init__()
@@ -102,16 +104,16 @@ class MidiTransformer(torch.nn.Module):
 
     def forward(self, x):
         return self._transformer(self._pos_enc(x))
-    
+
+
 def fit(
-        model: torch.nn.Module, 
-        ds: tdata.Dataset | tdata.IterableDataset,
-        epochs: int = 100,
-        batch_size: int = 32,
-        lr: float = 0.003,
-        device: str = None
-        
-    ) -> None:
+    model: torch.nn.Module,
+    ds: tdata.Dataset | tdata.IterableDataset,
+    epochs: int = 100,
+    batch_size: int = 32,
+    lr: float = 0.003,
+    device: str = None,
+) -> None:
     if device is None:
         device = (
             "cuda"
@@ -120,7 +122,7 @@ def fit(
             if torch.backends.mps.is_available()
             else "cpu"
         )
-    
+
     model = model.to(device)
 
     model.train()
@@ -130,7 +132,7 @@ def fit(
     opt = torch.optim.Adam(model.parameters(), lr=lr)
 
     size = len(dl.dataset)
-    
+
     for epoch in range(epochs):
         for batch, (x, y) in enumerate(dl):
             t0 = time.time_ns()
@@ -148,7 +150,7 @@ def fit(
             t3 = time.time_ns()
 
             loss.backward()
-            
+
             t4 = time.time_ns()
 
             opt.step()
@@ -163,9 +165,12 @@ def fit(
 
             if batch % 1 == 0:
                 loss, current = loss.item(), batch * batch_size + len(x)
-                print(f"epoch: [{epoch} / {epochs}] loss: {loss} [{current}/{size}]", end="\n")
+                print(
+                    f"epoch: [{epoch} / {epochs}] loss: {loss} [{current}/{size}]",
+                    end="\n",
+                )
                 print(f"times: {[d / 1e9 for d in diffs]}")
-                
+
 
 if __name__ == "__main__":
     k = 100
